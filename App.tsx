@@ -14,6 +14,8 @@ import {
   subscribeToAuthChanges 
 } from './firebase-config';
 
+const ADMIN_EMAIL = 'shahhtetnaing@gmail.com';
+
 const Navbar: React.FC<{ 
   user: User | null; 
   onLoginRequest: () => void; 
@@ -23,6 +25,8 @@ const Navbar: React.FC<{
 }> = ({ user, onLoginRequest, onLogout, isLoggingIn, onOpenSettings }) => {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path ? 'text-indigo-600 font-black' : 'text-gray-600 hover:text-indigo-500 font-bold';
+
+  const isUserPro = user?.isPro || user?.email === ADMIN_EMAIL;
 
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50 border-b border-slate-100">
@@ -53,8 +57,8 @@ const Navbar: React.FC<{
                   <img src={user.picture} alt={user.name} className="w-8 h-8 rounded-full border shadow-sm group-hover:ring-2 ring-indigo-500" />
                   <div className="text-left leading-none">
                     <div className="text-[9px] font-black uppercase text-slate-800">{user.name.split(' ')[0]}</div>
-                    <div className={`text-[8px] font-bold uppercase ${user.isPro ? 'text-indigo-600' : user.isGuest ? 'text-amber-500' : 'text-slate-400'}`}>
-                      {user.isPro ? 'Pro Member' : user.isGuest ? 'Guest Trial' : 'Free Account'}
+                    <div className={`text-[8px] font-bold uppercase ${isUserPro ? 'text-indigo-600' : user.isGuest ? 'text-amber-500' : 'text-slate-400'}`}>
+                      {isUserPro ? 'Pro Member' : user.isGuest ? 'Guest Trial' : 'Free Account'}
                     </div>
                   </div>
                 </button>
@@ -151,6 +155,7 @@ const AccountSettingsModal: React.FC<{
   onClose: () => void;
   onLogout: () => void;
 }> = ({ user, onClose, onLogout }) => {
+  const isUserPro = user.isPro || user.email === ADMIN_EMAIL;
   return (
     <div className="fixed inset-0 z-[500] bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
       <div className="bg-white w-full max-w-md rounded-[32px] shadow-2xl overflow-hidden animate-in zoom-in duration-300">
@@ -163,21 +168,21 @@ const AccountSettingsModal: React.FC<{
           <div className="flex flex-col items-center mb-8 bg-slate-50 p-8 rounded-[24px]">
             <div className="relative">
               <img src={user.picture} alt={user.name} className="w-24 h-24 rounded-full border-4 border-white shadow-xl mb-4" />
-              {user.isPro && <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-xl shadow-lg border-2 border-white"><Crown size={16} /></div>}
+              {isUserPro && <div className="absolute -top-1 -right-1 bg-indigo-600 text-white p-1.5 rounded-xl shadow-lg border-2 border-white"><Crown size={16} /></div>}
             </div>
             <h3 className="text-xl font-black text-slate-900">{user.name}</h3>
             <p className="text-sm text-slate-400 font-bold uppercase tracking-wider mt-1">{user.email}</p>
           </div>
 
           <div className="space-y-4 mb-8">
-            <div className={`p-5 rounded-2xl flex items-center justify-between border-2 transition-all ${user.isPro ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
+            <div className={`p-5 rounded-2xl flex items-center justify-between border-2 transition-all ${isUserPro ? 'bg-indigo-50 border-indigo-100' : 'bg-slate-50 border-slate-100'}`}>
               <div>
                 <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</div>
-                <div className={`text-xs font-black uppercase ${user.isPro ? 'text-indigo-600' : user.isGuest ? 'text-amber-500' : 'text-slate-600'}`}>
-                  {user.isPro ? 'Verified Pro Lifetime' : user.isGuest ? 'Guest Trial (Limited)' : 'Standard Free Account'}
+                <div className={`text-xs font-black uppercase ${isUserPro ? 'text-indigo-600' : user.isGuest ? 'text-amber-500' : 'text-slate-600'}`}>
+                  {isUserPro ? 'Verified Pro Lifetime' : user.isGuest ? 'Guest Trial (Limited)' : 'Standard Free Account'}
                 </div>
               </div>
-              {user.isPro && <ShieldCheck className="text-indigo-600" size={24} />}
+              {isUserPro && <ShieldCheck className="text-indigo-600" size={24} />}
             </div>
           </div>
 
@@ -201,16 +206,16 @@ function App() {
     const savedUser = localStorage.getItem('shah_builder_user');
     if (savedUser) {
       const parsed = JSON.parse(savedUser);
-      if (parsed.email === 'shahhtetnaing@gmail.com') {
+      if (parsed.email === ADMIN_EMAIL) {
         parsed.isPro = true;
       }
       setUser(parsed);
     }
 
-    // Subscribe to Firebase auth changes to keep user in sync
+    // Subscribe to Firebase auth changes
     const unsubscribe = subscribeToAuthChanges((firebaseUser) => {
       if (firebaseUser) {
-        const isFounder = firebaseUser.email === 'shahhtetnaing@gmail.com';
+        const isFounder = firebaseUser.email === ADMIN_EMAIL;
         const savedUserStr = localStorage.getItem('shah_builder_user');
         const savedUser = savedUserStr ? JSON.parse(savedUserStr) : null;
         
@@ -231,7 +236,6 @@ function App() {
           document.body.classList.add('is-admin');
         }
       } else {
-        // Only clear if not guest (guests are local only)
         setUser(prev => (prev?.isGuest ? prev : null));
         document.body.classList.remove('is-admin');
       }
@@ -244,7 +248,6 @@ function App() {
     setShowSignInDialog(false);
     setForceRealLogin(false);
     
-    // For guest login, we handle it manually since Firebase doesn't manage guest sessions here
     if (userData.isGuest) {
       setIsLoggingIn(true);
       setTimeout(() => {
@@ -263,8 +266,6 @@ function App() {
         setIsLoggingIn(false);
       }, 500);
     }
-    // If it's a real login, Firebase listener will handle the state update automatically 
-    // after the signInWithPopup completes in GoogleLoginPortal.
   };
 
   const handleLogout = async () => {
@@ -274,7 +275,7 @@ function App() {
   };
 
   const updateUserInStorage = (updatedUser: User) => {
-    if (updatedUser.email === 'shahhtetnaing@gmail.com') {
+    if (updatedUser.email === ADMIN_EMAIL) {
       updatedUser.isPro = true;
     }
     setUser(updatedUser);
